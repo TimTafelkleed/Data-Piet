@@ -1,0 +1,260 @@
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Interactieve Robot (uitgelijnd, zonder beweging)</title>
+  <style>
+    :root {
+      --bg: #0f172a;          /* donkerblauw achtergrond */
+      --panel: #111827;       /* donker paneel */
+      --text: #e5e7eb;        /* lichtgrijs tekst */
+      --accent: #22d3ee;      /* cyan */
+      --robot-1: #64748b;     /* slate */
+      --robot-2: #94a3b8;     /* light slate */
+      --shadow: rgba(0,0,0,0.35);
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: linear-gradient(135deg, var(--bg), #1f2937);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+
+    .page {
+      display: grid;
+      grid-template-columns: 1fr minmax(280px, 360px) 1fr;
+      gap: 2rem;
+      min-height: 100vh;
+      align-items: center;
+      padding: 3rem 1rem;
+    }
+
+    .left, .right { align-self: start; }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid #334155;
+      border-radius: 14px;
+      box-shadow: 0 10px 30px var(--shadow);
+      padding: 1rem 1.25rem;
+    }
+
+    .title { margin: 0 0 .25rem 0; font-size: clamp(1.2rem, 2.5vw, 1.6rem); font-weight: 700; }
+    .subtitle { margin: 0 0 .75rem 0; color: #cbd5e1; }
+
+    /* ROBOT CANVAS */
+    .robot-wrap { display: grid; place-items: center; }
+    .robot {
+      position: relative;
+      width: 280px;
+      height: 420px;
+      background: radial-gradient(120px 180px at 50% 40%, rgba(255,255,255,0.05), transparent 70%);
+      border-radius: 16px;
+      outline: 1px solid #334155;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+      user-select: none;
+    }
+
+    /* Onderdelen als knoppen (toegankelijk) */
+    .part {
+      position: absolute;
+      display: inline-block;
+      border: 2px solid #0ea5e9;
+      background: linear-gradient(180deg, var(--robot-2), var(--robot-1));
+      color: #0c4a6e;
+      cursor: pointer;
+      border-radius: 8px;
+      /* Belangrijk: geen animaties of transities zodat er niets beweegt bij klik */
+      transition: none !important;
+      transform: none !important;
+      will-change: auto;
+      padding: 0;
+    }
+    .part:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .part:hover { box-shadow: 0 4px 12px var(--shadow); }
+    .part:active { box-shadow: 0 0 0 2px var(--accent) inset; }
+
+    /* Posities — vaste uitlijning, geen JS-mutaties */
+    #hoofd      { top: 30px;  left: 90px;  width: 100px; height: 90px;  border-radius: 12px; }
+    #lichaam    { top: 130px; left: 60px;  width: 160px; height: 150px; border-radius: 12px; }
+    #arm-links  { top: 150px; left: 10px;  width: 40px;  height: 130px; border-radius: 12px; }
+    #arm-rechts { top: 150px; left: 230px; width: 40px;  height: 130px; border-radius: 12px; }
+    #been-links { top: 300px; left: 85px;  width: 40px;  height: 100px; border-radius: 12px; }
+    #been-rechts{ top: 300px; left: 155px; width: 40px;  height: 100px; border-radius: 12px; }
+
+    /* Details (ogen, paneel) als pseudo-elementen: veroorzaken geen beweging */
+    #hoofd::before, #hoofd::after {
+      content: "";
+      position: absolute;
+      top: 28px; width: 16px; height: 16px; border-radius: 50%;
+      background: #0ea5e9; box-shadow: 0 0 8px rgba(34,211,238,0.6);
+    }
+    #hoofd::before { left: 26px; }
+    #hoofd::after  { right: 26px; }
+    #lichaam::before {
+      content: ""; position: absolute; left: 50%; transform: translateX(-50%);
+      bottom: 14px; width: 80px; height: 36px; border-radius: 8px;
+      background: rgba(2,132,199,0.2);
+      border: 1px solid rgba(14,165,233,0.3);
+    }
+
+    /* Info-paneel */
+    #info { min-height: 140px; font-size: 0.95rem; line-height: 1.5; color: #e2e8f0; }
+    #info strong { color: var(--accent); }
+
+    .legend {
+      margin-top: .75rem;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: .5rem;
+    }
+    .legend span { font-size: .85rem; color: #cbd5e1; }
+    .legend .dot {
+      display:inline-block; width: .8rem; height: .8rem; border-radius: 50%;
+      background: #0ea5e9; margin-right: .35rem; box-shadow: 0 0 6px rgba(34,211,238,0.6);
+    }
+
+    footer { text-align:center; font-size:.8rem; color:#94a3b8; margin-top:1rem; }
+
+	
+/* Wachtwoordknop rechtsonder */
+.password-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #22d3ee;
+  color: #0f172a;
+  border: none;
+  padding: 10px 16px;
+  font-size: 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+/* Paneel dat verschijnt bij klikken */
+.password-panel {
+  position: fixed;
+  bottom: 70px;
+  right: 20px;
+  background: #111827;
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  display: none; /* standaard verborgen */
+}
+
+.password-panel input {
+  width: 180px;
+  padding: 6px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  border: 1px solid #334155;
+}
+
+.password-panel button {
+  background: #22d3ee;
+  color: #0f172a;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+  </style>
+</head>
+<body>
+  <main class="page" aria-label="Interactieve robotpagina">
+    <section class="left card" aria-labelledby="welkom-title">
+      <h1 id="welkom-title" class="title">Data Piet</h1>
+      <div id="info" aria-live="polite">
+        <p><strong>Welkom!</strong><br> Klik op de verschillende onderdelen van mij! - de Data Piet</p>
+      </div>
+    </section>
+
+    <section class="robot-wrap">
+      <div class="robot" role="figure" aria-label="Robot met klikbare onderdelen">
+        <button id="hoofd" class="part" type="button" aria-label="Hoofd" data-part="hoofd"></button>
+        <button id="lichaam" class="part" type="button" aria-label="Buik" data-part="lichaam"></button>
+        <button id="arm-links" class="part" type="button" aria-label="Rechterarm" data-part="arm-links"></button>
+        <button id="arm-rechts" class="part" type="button" aria-label="Linkerarm" data-part="arm-rechts"></button>
+        <button id="been-links" class="part" type="button" aria-label="Rechterbeen" data-part="been-links"></button>
+        <button id="been-rechts" class="part" type="button" aria-label="Linkerbeen" data-part="been-rechts"></button>
+      </div>
+    </section>
+
+    <aside class="right card">
+      <h2 class="title">Tips</h2>
+      <ul>
+        <li>Bekijk alle data</li>
+	<br>
+        <li>Onthoud je antwoorden</li>
+	<br>
+        <li>Combineer</li>	
+      </ul>
+    </aside>
+  </main>
+
+  
+	<!-- Wachtwoordknop en paneel -->
+	<button class="password-btn" id="openPassword">Wachtwoord</button>
+	<div class="password-panel" id="passwordPanel">
+	  <input type="password" id="passwordInput" placeholder="Voer wachtwoord in" />
+	  <button id="submitPassword">OK</button>
+	  <div id="passwordMessage" style="margin-top:8px;color:#e5e7eb;font-size:0.9rem;"></div>
+	</div>
+
+
+  <script>
+    // Teksten voor elk onderdeel (NL)
+    const teksten = {
+      "hoofd": "<br>'Het hoofd is een heel belangrijk onderdeel van de mens, dus ook voor een robot!'<br><br>Welk dier op Aarde heeft de grootste kop?<br>H: De Blauwe 	vinvis <br>V: De Potvis <br>A: De Olifant.",
+      "lichaam": "Het lichaam huisvest de energiebron en de centrale besturing.",
+      "arm-links": "De linkerarm is ontworpen voor precisiehandelingen.",
+      "arm-rechts": "De rechterarm levert extra kracht bij tillen.",
+      "been-links": "Het linkerbeen zorgt voor stabiliteit tijdens beweging.",
+      "been-rechts": "Het rechterbeen ondersteunt balans en voortstuwing."
+    };
+
+    const info = document.getElementById('info');
+
+    // Belangrijk: we wijzigen nooit stijl/positie in JS — alleen tekst.
+    document.querySelectorAll('.part').forEach(el => {
+      el.addEventListener('click', () => {
+        const key = el.dataset.part;
+        const tekst = teksten[key] || "Dit onderdeel heeft geen beschrijving.";
+        info.innerHTML = `<p><strong>${el.getAttribute('aria-label')}:</strong> ${tekst}</p>`;
+      });
+    });
+
+   
+
+  // Wachtwoordpaneel functionaliteit
+  const openBtn = document.getElementById('openPassword');
+  const panel = document.getElementById('passwordPanel');
+  const submitBtn = document.getElementById('submitPassword');
+  const input = document.getElementById('passwordInput');
+  const message = document.getElementById('passwordMessage');
+
+  // Toon/verberg het paneel bij klikken op de knop
+  openBtn.addEventListener('click', () => {
+    panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+  });
+
+  // Controleer het ingevoerde wachtwoord
+  submitBtn.addEventListener('click', () => {
+    const pwd = input.value;
+    if (pwd === 'LOUVRE') {
+      message.textContent = 'Correct wachtwoord!';
+      message.style.color = '#22d3ee'; // groen/blauw
+    } else {
+      message.textContent = 'Onjuist wachtwoord.';
+      message.style.color = '#f87171'; // rood
+    }
+  });
+
+  </script>
+</body>
+</html>
